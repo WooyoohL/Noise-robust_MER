@@ -12,6 +12,7 @@ import random
 from sklearn.manifold import TSNE
 import matplotlib as mpl
 import pickle
+from draw import collect_and_noise_feats
 
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -87,7 +88,7 @@ def eval(model, val_iter, is_save=False, phase='test', epoch=-1):
 
 
 def clean_chekpoints(expr_name, store_epoch):
-    root = os.path.join('checkpoints', expr_name)
+    root = os.path.join('checkpoint/mrcn', expr_name)
     for checkpoint in os.listdir(root):
         if not checkpoint.startswith(str(store_epoch) + '_') and checkpoint.endswith('pth'):
             os.remove(os.path.join(root, checkpoint))
@@ -151,6 +152,7 @@ if __name__ == '__main__':
             total_iters += 1  # opt.batch_size
             epoch_iter += opt.batch_size
             model.set_input(data)  # unpack data from dataset and apply preprocessing
+            SystemExit()
             model.optimize_parameters(epoch)  # calculate loss functions, get gradients, update network weights
 
             if total_iters % opt.print_freq == 0:  # print training losses and save logging information to the disk

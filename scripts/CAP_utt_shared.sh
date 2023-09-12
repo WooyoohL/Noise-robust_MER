@@ -14,9 +14,9 @@ cmd="python train_baseline.py --dataset_mode=multimodal --model=utt_shared
 --V_type=denseface --input_dim_v=342 --embd_size_v=128  --embd_method_v=maxpool
 --L_type=bert_large --input_dim_l=1024 --embd_size_l=128
 --num_thread=0 --corpus=IEMOCAP
---output_dim=4 --cls_layers=128,128 --dropout_rate=0.3
---niter=10 --niter_decay=10 --verbose --beta1=0.9
---batch_size=64 --lr=2e-4 --run_idx=$run_idx
+--output_dim=4 --cls_layers=128,128 --dropout_rate=0.5
+--niter=20 --niter_decay=20 --verbose --beta1=0.9
+--batch_size=128 --lr=2e-4 --run_idx=$run_idx
 --name=CAP_utt_shared --suffix={modality}_run{run_idx} --has_test
 --cvNo=$i"
 

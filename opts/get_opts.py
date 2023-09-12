@@ -52,8 +52,10 @@ class Options():
                             help='network initialization [normal | xavier | kaiming | orthogonal]')
         parser.add_argument('--init_gain', type=float, default=0.012,
                             help='scaling factor for normal, xavier and orthogonal.')
+        parser.add_argument('--noise_type', type=str, default='Gaussian', help='Gaussian or Impulse')
 
         # dataset parameters
+        parser.add_argument('--num_time_step', type=int, default=1000)
         parser.add_argument('--dataset_mode', type=str, default='multimodal',
                             help='chooses how datasets are loaded. [iemocap, ami, mix]')
         parser.add_argument('--num_threads', default=0, type=int, help='# threads for loading data')

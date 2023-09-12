@@ -1,3 +1,4 @@
+import copy
 
 import torch
 import os
@@ -12,6 +13,9 @@ from models.networks.classifier import FcClassifier
 from models.networks.autoencoder import ResidualAE
 from models.utt_fusion_model import UttFusionModel
 from .utils.config import OptConfig
+from Domiss import add_missing, NoiseScheduler
+
+from .utt_shared_model import UttSharedModel
 
 
 class MMINModel(BaseModel):
@@ -49,7 +53,15 @@ class MMINModel(BaseModel):
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE', 'mse', 'cycle']
         self.model_names = ['A', 'V', 'L', 'C', 'AE', 'AE_cycle']   # 六个模块的名称
-        
+
+        self.batch_size = opt.batch_size
+        self.num_time_step = opt.num_time_step
+        self.noise_type = opt.noise_type
+
+        # noise_scheduler
+        self.noise_scheduler = NoiseScheduler(noise_type=self.noise_type, num_time_steps=self.num_time_step)
+
+
         # acoustic model
         self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
         # lexical model 文本
@@ -93,6 +105,13 @@ class MMINModel(BaseModel):
         if not os.path.exists(self.predict_image_save_dir):
             os.makedirs(self.predict_image_save_dir)
 
+
+    def load_from_opt_record(self, file_path):
+        opt_content = json.load(open(file_path, 'r'))
+        opt = OptConfig()
+        opt.load(opt_content)
+        return opt
+
     # 加载预训练Encoder，
     def load_pretrained_encoder(self, opt):
         print('Init parameter from {}'.format(opt.pretrained_path))
@@ -101,11 +120,11 @@ class MMINModel(BaseModel):
         pretrained_config = self.load_from_opt_record(pretrained_config_path)
         pretrained_config.isTrain = False                             # teacher model should be in test mode
         pretrained_config.gpu_ids = opt.gpu_ids                       # set gpu to the same
-        self.pretrained_encoder = UttFusionModel(pretrained_config)
+        self.pretrained_encoder = UttSharedModel(pretrained_config)
         self.pretrained_encoder.load_networks_cv(pretrained_path)
         self.pretrained_encoder.cuda()
         self.pretrained_encoder.eval()
-    
+
     def post_process(self):
         # called after model.setup()
         def transform_key_for_parallel(state_dict):
@@ -116,12 +135,6 @@ class MMINModel(BaseModel):
             self.netA.load_state_dict(f(self.pretrained_encoder.netA.state_dict()))
             self.netV.load_state_dict(f(self.pretrained_encoder.netV.state_dict()))
             self.netL.load_state_dict(f(self.pretrained_encoder.netL.state_dict()))
-        
-    def load_from_opt_record(self, file_path):
-        opt_content = json.load(open(file_path, 'r'))
-        opt = OptConfig()
-        opt.load(opt_content)
-        return opt
 
     def set_input(self, input):
         """
@@ -129,31 +142,23 @@ class MMINModel(BaseModel):
         Parameters:
             input (dict): include the data itself and its metadata information.
         """
-        # print("input is ", input)
-        # return
-        acoustic = input['A_feat'].float().to(self.device)
-        lexical = input['L_feat'].float().to(self.device)
-        visual = input['V_feat'].float().to(self.device)
+        self.acoustic = acoustic = input['A_feat'].float().to(self.device)
+        self.lexical = lexical = input['L_feat'].float().to(self.device)
+        self.visual = visual = input['V_feat'].float().to(self.device)
+        self.missing_index = input['missing_index'].long().to(self.device)  # [a,v,l]
+
+        self.A_miss_index = self.missing_index[:, 0].unsqueeze(1).unsqueeze(2)
+        self.V_miss_index = self.missing_index[:, 1].unsqueeze(1).unsqueeze(2)
+        self.L_miss_index = self.missing_index[:, 2].unsqueeze(1).unsqueeze(2)
+
+        self.A_miss, self.A_reverse = self.noise_scheduler.add_noise(self.acoustic, self.A_miss_index)
+        self.V_miss, self.V_reverse = self.noise_scheduler.add_noise(self.visual, self.V_miss_index)
+        self.L_miss, self.L_reverse = self.noise_scheduler.add_noise(self.lexical, self.L_miss_index)
+
         if self.isTrain:
             self.label = input['label'].to(self.device)
-            self.missing_index = input['missing_index'].long().to(self.device)
-            self.miss_type = input['miss_type']
-            # A modality
-            self.A_miss_index = self.missing_index[:, 0].unsqueeze(1).unsqueeze(2)
-            self.A_miss = acoustic * self.A_miss_index
-            self.A_reverse = acoustic * -1 * (self.A_miss_index - 1)
-            # L modality
-            self.L_miss_index = self.missing_index[:, 2].unsqueeze(1).unsqueeze(2)
-            self.L_miss = lexical * self.L_miss_index
-            self.L_reverse = lexical * -1 * (self.L_miss_index - 1)
-            # V modality
-            self.V_miss_index = self.missing_index[:, 1].unsqueeze(1).unsqueeze(2)
-            self.V_miss = visual * self.V_miss_index
-            self.V_reverse = visual * -1 * (self.V_miss_index - 1)
         else:
-            self.A_miss = acoustic
-            self.V_miss = visual
-            self.L_miss = lexical
+            pass
 
 
 
@@ -197,7 +202,3 @@ class MMINModel(BaseModel):
         self.optimizer.zero_grad()  
         self.backward()            
         self.optimizer.step()
-
-
-    def get_feature(self):
-        return self.missing_index, self.miss_type

@@ -19,11 +19,13 @@ from models.utt_fusion_model import UttFusionModel
 from models.utils.config import OptConfig
 from models.networks.shared import SharedEncoder
 from models.MISA_model import MISAModel
-from models.utt_shared_model import UttSharedModel
+# from models.utt_shared_model import UttSharedModel
 from Domiss import add_missing, NoiseScheduler
+from models.vae_model import ConditionVAE_1, vae_loss, ConditionVAE_wo, ConditionVAE_2
+from models.utt_shared_002_model import UttShared002Model
 
 
-class IFMMINModel(BaseModel):
+class MRCN1Model(BaseModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.add_argument('--input_dim_a', type=int, default=130, help='acoustic input dim')
@@ -58,41 +60,50 @@ class IFMMINModel(BaseModel):
     def __init__(self, opt):
         """Initialize the LSTM autoencoder class
         Parameters:
-            opt (Option class)-- stores all the experiment flags;
-             needs to be a subclass of BaseOptions
+            opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         super().__init__(opt)
         # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
-        self.loss_names = ['CE', 'mse', 'invariant']
-        self.model_names = ['C', 'AE', 'invariant']  # 六个模块的名称
-
+        self.loss_names = ['CE', 'invariant', 'vae']
+        # self.model_names = ['C', 'invariant',
+        #                     'A_inv', 'A_spec', 'L_inv', 'L_spec', 'V_inv', 'V_spec',
+        #                     'VAE_a', 'VAE_v', 'VAE_l', 'classify']
+        self.model_names = ['C', 'invariant',
+                            'A_inv', 'A_spec', 'L_inv', 'L_spec', 'V_inv', 'V_spec',
+                            'VAE']
+        self.batch_size = opt.batch_size
         self.num_time_step = opt.num_time_step
         self.noise_type = opt.noise_type
 
         # noise_scheduler
         self.noise_scheduler = NoiseScheduler(noise_type=self.noise_type, num_time_steps=self.num_time_step)
-        self.batch_size = opt.batch_size
-        # acoustic model
-        self.netA = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
-        self.model_names.append('A')
-        # lexical model 文本
-        self.netL = TextCNN(opt.input_dim_l, opt.embd_size_l)
-        self.model_names.append('L')
-        # visual model
-        self.netV = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, opt.embd_method_v)
-        self.model_names.append('V')
-        # # AE model  级联残差自编码器
 
-        AE_layers = list(map(lambda x: int(x), opt.AE_layers.split(',')))
-        AE_input_dim = opt.embd_size_a + opt.embd_size_v + opt.embd_size_l
-        self.netAE = ResidualAE(AE_layers, opt.n_blocks, AE_input_dim, dropout=0, use_bn=False)
+        # acoustic model
+        self.netA_inv = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
+        self.netA_spec = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
+
+        # lexical model 文本
+        self.netL_inv = TextCNN(opt.input_dim_l, opt.embd_size_l)
+        self.netL_spec = TextCNN(opt.input_dim_l, opt.embd_size_l)
+
+        # visual model
+        self.netV_inv = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, opt.embd_method_v)
+        self.netV_spec = LSTMEncoder(opt.input_dim_v, opt.embd_size_v, opt.embd_method_v)
+
         # 分类层
         cls_layers = list(map(lambda x: int(x), opt.cls_layers.split(',')))
-        cls_input_size = AE_layers[-1] * opt.n_blocks
-        self.netC = FcClassifier(cls_input_size, cls_layers, output_dim=opt.output_dim, dropout=opt.dropout_rate,
-                                 use_bn=opt.bn)
+
+        self.netC = FcClassifier(384, cls_layers, output_dim=opt.output_dim, dropout=opt.dropout_rate,
+                                 use_bn=True)
         # 共性特征提取网络
         self.netinvariant = SharedEncoder(opt)
+        self.netVAE = ConditionVAE_1()
+        # self.netVAE_a = ConditionVAE_2()
+        # self.netVAE_v = ConditionVAE_2()
+        # self.netVAE_l = ConditionVAE_2()
+        # self.netclassify = torch.nn.Linear(128, 4)
+
+
 
         if self.isTrain:
             self.load_pretrained_encoder(opt)
@@ -136,11 +147,10 @@ class IFMMINModel(BaseModel):
         pretrained_config = self.load_from_opt_record(pretrained_config_path)
         pretrained_config.isTrain = False  # teacher model should be in test mode
         pretrained_config.gpu_ids = opt.gpu_ids  # set gpu to the same
-        self.pretrained_encoder = UttSharedModel(pretrained_config)
+        self.pretrained_encoder = UttShared002Model(pretrained_config)
         self.pretrained_encoder.load_networks_cv(pretrained_path)
         self.pretrained_encoder.cuda()
         self.pretrained_encoder.eval()
-
 
     def post_process(self):
         # called after model.setup()
@@ -150,9 +160,12 @@ class IFMMINModel(BaseModel):
         if self.isTrain:
             print('[ Init ] Load parameters from pretrained encoder network')
             f = lambda x: transform_key_for_parallel(x)
-            self.netA.load_state_dict(f(self.pretrained_encoder.netA.state_dict()))
-            self.netV.load_state_dict(f(self.pretrained_encoder.netV.state_dict()))
-            self.netL.load_state_dict(f(self.pretrained_encoder.netL.state_dict()))
+            self.netA_spec.load_state_dict(f(self.pretrained_encoder.netA_spec.state_dict()))
+            self.netV_spec.load_state_dict(f(self.pretrained_encoder.netV_spec.state_dict()))
+            self.netL_spec.load_state_dict(f(self.pretrained_encoder.netL_spec.state_dict()))
+            self.netA_inv.load_state_dict(f(self.pretrained_encoder.netA_inv.state_dict()))
+            self.netV_inv.load_state_dict(f(self.pretrained_encoder.netV_inv.state_dict()))
+            self.netL_inv.load_state_dict(f(self.pretrained_encoder.netL_inv.state_dict()))
             self.netinvariant.load_state_dict(f(self.pretrained_encoder.netShared.state_dict()))
 
     def load_from_opt_record(self, file_path):
@@ -176,66 +189,85 @@ class IFMMINModel(BaseModel):
         self.V_miss_index = self.missing_index[:, 1].unsqueeze(1).unsqueeze(2)
         self.L_miss_index = self.missing_index[:, 2].unsqueeze(1).unsqueeze(2)
 
-        self.A_miss, self.A_reverse = self.noise_scheduler.add_noise(self.acoustic, self.A_miss_index)
-        self.V_miss, self.V_reverse = self.noise_scheduler.add_noise(self.visual, self.V_miss_index)
-        self.L_miss, self.L_reverse = self.noise_scheduler.add_noise(self.lexical, self.L_miss_index)
+        self.A_miss, _ = self.noise_scheduler.add_noise(self.acoustic, self.A_miss_index)
+        self.V_miss, _ = self.noise_scheduler.add_noise(self.visual, self.V_miss_index)
+        self.L_miss, _ = self.noise_scheduler.add_noise(self.lexical, self.L_miss_index)
 
         if self.isTrain:
             self.label = input['label'].to(self.device)
         else:
             pass
 
+
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         # get utt level representattion
-        self.feat_A_miss = self.netA(self.A_miss)  # 缺失视频特征
-        self.feat_L_miss = self.netL(self.L_miss)
-        self.feat_V_miss = self.netV(self.V_miss)
-        # fusion miss
-        self.feat_fusion_miss = torch.cat([self.feat_A_miss, self.feat_L_miss, self.feat_V_miss], dim=-1)
+        self.feat_A_miss = self.netA_inv(self.A_miss)  # 缺失视频特征
+        self.feat_A_miss_spec = self.netA_spec(self.A_miss)
 
+        self.feat_L_miss = self.netL_inv(self.L_miss)
+        self.feat_L_miss_spec = self.netL_spec(self.L_miss)
+
+        self.feat_V_miss = self.netV_inv(self.V_miss)
+        self.feat_V_miss_spec = self.netV_spec(self.V_miss)
+
+        # fusion miss
+        self.feat_fusion_miss = torch.cat([self.feat_A_miss_spec, self.feat_L_miss_spec, self.feat_V_miss_spec], dim=-1)
         self.feat_A_invariant = self.netinvariant(self.feat_A_miss)
         self.feat_L_invariant = self.netinvariant(self.feat_L_miss)
         self.feat_V_invariant = self.netinvariant(self.feat_V_miss)
         self.invariant_miss = torch.cat([self.feat_A_invariant, self.feat_L_invariant, self.feat_V_invariant], dim=-1)
 
-        self.recon_fusion, self.latent = self.netAE(self.feat_fusion_miss, self.invariant_miss)
+        # self.recon_a, self.mu_a, self.logvar_a = self.netVAE_a(self.feat_A_miss_spec, self.invariant_miss)
+        # self.recon_v, self.mu_v, self.logvar_v = self.netVAE_v(self.feat_V_miss_spec, self.invariant_miss)
+        # self.recon_l, self.mu_l, self.logvar_l = self.netVAE_l(self.feat_L_miss_spec, self.invariant_miss)
+
+        # self.recon = torch.cat([self.recon_a, self.recon_v, self.recon_l], dim=-1)
+        # self.recon = self.recon + self.feat_fusion_miss
+
+        self.x_recon, self.mu, self.logvar = self.netVAE(self.feat_fusion_miss, self.invariant_miss)
+        self.x_recon = self.x_recon + self.feat_fusion_miss
+        # self.x_recon = self.feat_fusion_miss + self.invariant_miss
 
         # get fusion outputs for missing modality
-        self.logits, _ = self.netC(self.latent)
+
+        self.logits, _ = self.netC(self.x_recon)
+
+        # self.logits = self.netclassify(self.recon_a)
         self.pred = F.softmax(self.logits, dim=-1)
-        # for training 
+        # for training
         if self.isTrain:
             with torch.no_grad():
-                self.T_embd_A = self.pretrained_encoder.netA(self.A_reverse)
-                self.T_embd_L = self.pretrained_encoder.netL(self.L_reverse)
-                self.T_embd_V = self.pretrained_encoder.netV(self.V_reverse)
+                self.T_embd_A = self.pretrained_encoder.netA_spec(self.acoustic)
+                self.T_embd_L = self.pretrained_encoder.netL_spec(self.lexical)
+                self.T_embd_V = self.pretrained_encoder.netV_spec(self.visual)
                 self.T_embds = torch.cat([self.T_embd_A, self.T_embd_L, self.T_embd_V], dim=-1)
 
-                # invariant_missing_num = self.missing_index.sum(dim=1).unsqueeze(1)
-                # self.invariant_missing_utt = (self.feat_L_invariant + self.feat_V_invariant + self.feat_A_invariant) / invariant_missing_num
-
-                embd_A = self.pretrained_encoder.netA(self.acoustic)
-                embd_L = self.pretrained_encoder.netL(self.lexical)
-                embd_V = self.pretrained_encoder.netV(self.visual)
+                embd_A = self.pretrained_encoder.netA_inv(self.acoustic)
+                embd_L = self.pretrained_encoder.netL_inv(self.lexical)
+                embd_V = self.pretrained_encoder.netV_inv(self.visual)
 
                 embd_A_invariant = self.pretrained_encoder.netShared(embd_A)
                 embd_L_invariant = self.pretrained_encoder.netShared(embd_L)
                 embd_V_invariant = self.pretrained_encoder.netShared(embd_V)
                 self.invariant = torch.cat([embd_A_invariant, embd_L_invariant, embd_V_invariant], dim=-1)
-                # self.invariant = (embd_V_invariant + embd_A_invariant + embd_L_invariant) / 3.0
+
 
     def backward(self):
         """Calculate the loss for back propagation"""
         # 分类损失
         self.loss_CE = self.ce_weight * self.criterion_ce(self.logits, self.label)
         # forward损失
-        self.loss_mse = self.mse_weight * self.criterion_mse(self.T_embds, self.recon_fusion)
+        # self.loss_vae = vae_loss(self.T_embds, self.x_recon, self.mu, self.logvar)
+        # loss_vae_a = vae_loss(self.T_embd_A, self.recon_a, self.mu_a, self.logvar_a)
+        # loss_vae_v = vae_loss(self.T_embd_V, self.recon_v, self.mu_v, self.logvar_v)
+        # loss_vae_l = vae_loss(self.T_embd_L, self.recon_l, self.mu_l, self.logvar_l)
+        # self.loss_vae = loss_vae_a + loss_vae_l + loss_vae_v
+        self.loss_vae = vae_loss(self.T_embds, self.x_recon, self.mu, self.logvar)
         # 占位，共性特征损失
         self.loss_invariant = self.invariant_weight * self.criterion_mse(self.invariant, self.invariant_miss)
-        # self.loss_invariant = self.invariant_weight * self.criterion_mse(self.invariant, self.invariant_missing_utt)
-        # 综合损失
-        loss = self.loss_CE + self.loss_mse + self.loss_invariant
+
+        loss = self.loss_CE + self.loss_invariant + self.loss_vae
         loss.backward()
         for model in self.model_names:
             torch.nn.utils.clip_grad_norm_(getattr(self, 'net' + model).parameters(), 1.0)

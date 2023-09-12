@@ -105,7 +105,7 @@ class CustomDatasetDataLoader():
                 batch_size=opt.batch_size,
                 shuffle=not opt.serial_batches,
                 num_workers=int(opt.num_threads),
-                drop_last=False,
+                drop_last=True,
                 collate_fn=self.dataset.collate_fn
             )
 
@@ -115,7 +115,7 @@ class CustomDatasetDataLoader():
                 batch_size=opt.batch_size,
                 shuffle=not opt.serial_batches,
                 num_workers=int(opt.num_threads),
-                drop_last=False
+                drop_last=True
             )
 
     def __len__(self):

@@ -124,9 +124,9 @@ class MultimodalMissDataset(BaseDataset):
             'missing_index': missing_index,
             'miss_type': miss_type
         } if self.set_name == 'trn' else{
-            'A_feat': A_feat * missing_index[0], 
-            'V_feat': V_feat * missing_index[1],
-            'L_feat': L_feat * missing_index[2],
+            'A_feat': A_feat,# * missing_index[0],
+            'V_feat': V_feat,# * missing_index[1],
+            'L_feat': L_feat,# * missing_index[2],
             'label': label,
             'int2name': int2name,
             'missing_index': missing_index,
