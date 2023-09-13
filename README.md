@@ -2,9 +2,12 @@
 
 This repo implements the Noise-robust Multimodal Emotion Recognition(NMER)  model for the following paper:
 "Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios".
+
 You can obtain the NMER model in models/NMER_model.py, and the Noise scheduler in Domiss.py.
+
 You can modify the Noise scheduler to fit your own data framework.
-Hope you can enjoy the Neural Network!
+
+We hope you can enjoy the Neural Network!
 
 # Reference
 
@@ -19,7 +22,7 @@ pytorch >= 1.13.0
 
 # Usage
 
-First you should change the data folder path in ```data/config``` and preprocess your data follwing the code in ```preprocess/```.
+First, you should change the data folder path in ```data/config``` and preprocess your data following the code in ```preprocess/```.
 
 You can download the preprocessed feature to run the code.
 
