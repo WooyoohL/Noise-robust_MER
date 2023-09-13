@@ -1,7 +1,10 @@
 # NMER
 
-This repo implements the Noise-robust Multimodal Emotion Recognition(NMER) for the following paper:
-"Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios" 
+This repo implements the Noise-robust Multimodal Emotion Recognition(NMER)  model for the following paper:
+"Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios".
+You can obtain the NMER model in models/NMER_model.py, and the Noise scheduler in Domiss.py.
+You can modify the Noise scheduler to fit your own data framework.
+Hope you can enjoy the Neural Network!
 
 # Reference
 
