@@ -11,7 +11,7 @@ We hope you can enjoy the Neural Network!
 
 # Reference
 
-Thanks to the previous works, we used the code framework of  @JinmingZhao at https://github.com/JinmingZhao and @ZhuoYulang at https://github.com/ZhuoYulang to load and accelerate our model.
+Thanks to the previous works, we used and modified the code framework of  @JinmingZhao at https://github.com/JinmingZhao and @ZhuoYulang at https://github.com/ZhuoYulang to load and accelerate our model.
 
 # Environment
 
