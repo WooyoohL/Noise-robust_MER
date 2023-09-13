@@ -1,31 +1,20 @@
-"""
-最后确定的，我们提出的模型
-"""
-import copy
-
 import torch
 import os
 import json
 from collections import OrderedDict
 import torch.nn.functional as F
 from models.base_model import BaseModel
-from models.networks.fc import FcEncoder
 from models.networks.lstm import LSTMEncoder
 from models.networks.textcnn import TextCNN
 from models.networks.classifier import FcClassifier
-from models.networks.autoencoder_2 import ResidualAE
-# from models.networks.autoencoder import ResidualAE
-from models.utt_fusion_model import UttFusionModel
 from models.utils.config import OptConfig
 from models.networks.shared import SharedEncoder
-from models.MISA_model import MISAModel
-# from models.utt_shared_model import UttSharedModel
-from Domiss import add_missing, NoiseScheduler
-from models.vae_model import ConditionVAE_1, vae_loss, ConditionVAE_wo, ConditionVAE_2
+from Domiss import NoiseScheduler
+from models.vae_model import ConditionVAE, vae_loss
 from models.utt_shared_002_model import UttShared002Model
 
 
-class MRCN1Model(BaseModel):
+class NMERModel(BaseModel):
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         parser.add_argument('--input_dim_a', type=int, default=130, help='acoustic input dim')
@@ -63,11 +52,7 @@ class MRCN1Model(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         super().__init__(opt)
-        # our expriment is on 10 fold setting, teacher is on 5 fold setting, the train set should match
         self.loss_names = ['CE', 'invariant', 'vae']
-        # self.model_names = ['C', 'invariant',
-        #                     'A_inv', 'A_spec', 'L_inv', 'L_spec', 'V_inv', 'V_spec',
-        #                     'VAE_a', 'VAE_v', 'VAE_l', 'classify']
         self.model_names = ['C', 'invariant',
                             'A_inv', 'A_spec', 'L_inv', 'L_spec', 'V_inv', 'V_spec',
                             'VAE']
@@ -82,7 +67,7 @@ class MRCN1Model(BaseModel):
         self.netA_inv = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
         self.netA_spec = LSTMEncoder(opt.input_dim_a, opt.embd_size_a, embd_method=opt.embd_method_a)
 
-        # lexical model 文本
+        # lexical model
         self.netL_inv = TextCNN(opt.input_dim_l, opt.embd_size_l)
         self.netL_spec = TextCNN(opt.input_dim_l, opt.embd_size_l)
 
@@ -95,14 +80,9 @@ class MRCN1Model(BaseModel):
 
         self.netC = FcClassifier(384, cls_layers, output_dim=opt.output_dim, dropout=opt.dropout_rate,
                                  use_bn=True)
-        # 共性特征提取网络
-        self.netinvariant = SharedEncoder(opt)
-        self.netVAE = ConditionVAE_1()
-        # self.netVAE_a = ConditionVAE_2()
-        # self.netVAE_v = ConditionVAE_2()
-        # self.netVAE_l = ConditionVAE_2()
-        # self.netclassify = torch.nn.Linear(128, 4)
 
+        self.netinvariant = SharedEncoder(opt)
+        self.netVAE = ConditionVAE()
 
 
         if self.isTrain:
@@ -218,22 +198,11 @@ class MRCN1Model(BaseModel):
         self.feat_V_invariant = self.netinvariant(self.feat_V_miss)
         self.invariant_miss = torch.cat([self.feat_A_invariant, self.feat_L_invariant, self.feat_V_invariant], dim=-1)
 
-        # self.recon_a, self.mu_a, self.logvar_a = self.netVAE_a(self.feat_A_miss_spec, self.invariant_miss)
-        # self.recon_v, self.mu_v, self.logvar_v = self.netVAE_v(self.feat_V_miss_spec, self.invariant_miss)
-        # self.recon_l, self.mu_l, self.logvar_l = self.netVAE_l(self.feat_L_miss_spec, self.invariant_miss)
-
-        # self.recon = torch.cat([self.recon_a, self.recon_v, self.recon_l], dim=-1)
-        # self.recon = self.recon + self.feat_fusion_miss
 
         self.x_recon, self.mu, self.logvar = self.netVAE(self.feat_fusion_miss, self.invariant_miss)
-        self.x_recon = self.x_recon + self.feat_fusion_miss
-        # self.x_recon = self.feat_fusion_miss + self.invariant_miss
-
-        # get fusion outputs for missing modality
-
+        # self.x_recon = self.x_recon + self.feat_fusion_miss
         self.logits, _ = self.netC(self.x_recon)
 
-        # self.logits = self.netclassify(self.recon_a)
         self.pred = F.softmax(self.logits, dim=-1)
         # for training
         if self.isTrain:
@@ -257,12 +226,7 @@ class MRCN1Model(BaseModel):
         """Calculate the loss for back propagation"""
         # 分类损失
         self.loss_CE = self.ce_weight * self.criterion_ce(self.logits, self.label)
-        # forward损失
-        # self.loss_vae = vae_loss(self.T_embds, self.x_recon, self.mu, self.logvar)
-        # loss_vae_a = vae_loss(self.T_embd_A, self.recon_a, self.mu_a, self.logvar_a)
-        # loss_vae_v = vae_loss(self.T_embd_V, self.recon_v, self.mu_v, self.logvar_v)
-        # loss_vae_l = vae_loss(self.T_embd_L, self.recon_l, self.mu_l, self.logvar_l)
-        # self.loss_vae = loss_vae_a + loss_vae_l + loss_vae_v
+
         self.loss_vae = vae_loss(self.T_embds, self.x_recon, self.mu, self.logvar)
         # 占位，共性特征损失
         self.loss_invariant = self.invariant_weight * self.criterion_mse(self.invariant, self.invariant_miss)

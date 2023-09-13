@@ -1,13 +1,13 @@
-# IF-MMIN
+# NMER
 
-This repo implements the Invariant Feature aware Missing Modality Imagination Network(IF-MMIN) for the following paper:
-"Exploiting modality-invariant feature for robust multimodal emotion recognition with missing modalities" 
+This repo implements the Noise-robust Multimodal Emotion Recognition(NMER) for the following paper:
+"Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios" 
 
 # Environment
 
 ``` 
-python 3.8.0
-pytorch >= 1.0.0
+python 3.9.0
+pytorch >= 1.13.0
 ```
 
 # Usage
@@ -16,18 +16,18 @@ First you should change the data folder path in ```data/config``` and preprocess
 
 You can download the preprocessed feature to run the code.
 
-+ For Training IF-MMIN on IEMOCAP:
++ For Training NMER on IEMOCAP:
 
-    First training a model fusion model with all audio, visual and lexical modality as the pretrained encoder.
+    First training the pretrained encoder with full modalities and complete data.
 
     ```bash
     bash scripts/CAP_utt_shared.sh AVL [num_of_expr] [GPU_index]
     ```
 
-    Then
+    Then train the NMER model.
 
     ```bash
-    bash scripts/CAP_IFMMIN.sh [num_of_expr] [GPU_index]
+    bash scripts/ours/CAP_NMER.sh [num_of_expr] [GPU_index]
     ```
 
 
@@ -36,5 +36,6 @@ Note that you can run the code with default hyper-parameters defined in shell sc
 # Download the features
 Baidu Yun Link
 IEMOCAP A V L modality Features
-链接: https://pan.baidu.com/s/1WmuqNlvcs5XzLKfz5i4iqQ 提取码: gn6w 
+Link: https://pan.baidu.com/s/1WmuqNlvcs5XzLKfz5i4iqQ 
+Extract code: gn6w 
 
