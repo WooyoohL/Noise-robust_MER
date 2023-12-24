@@ -148,16 +148,20 @@ class NoiseScheduler:
 
             noisy_latents = sqrt_alpha_prod * latents + sqrt_one_minus_alpha_prod * noise
             latents = latents.unsqueeze(0)
-            if miss_index[i] == [0]:
+            if miss_index[i].item() == 0:
                 miss[i] = noisy_latents
                 reverse[i] = latents
-            elif miss_index[i] == [1]:
+            elif miss_index[i].item() == 1:
                 miss[i] = latents
                 reverse[i] = noisy_latents
+            else:
+                print(miss_index[i])
+                print('error')
 
-        miss = torch.stack(miss, dim=0)
-        reverse = torch.stack(reverse, dim=0)
+        miss = torch.cat(miss, dim=0)
+        reverse = torch.cat(reverse, dim=0)
         return miss, reverse
+
 
 
 
