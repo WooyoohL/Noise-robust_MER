@@ -51,9 +51,11 @@ Extract code: gn6w
 
 # Cition
 If you find our work or this repository useful, please consider citing:
+```bibtex
 @article{fan2023learning,
   title={Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios},
   author={Fan, Qi and Zuo, Haolin and Liu, Rui and Lian, Zheng and Gao, Guanglai},
   journal={arXiv preprint arXiv:2311.16114},
   year={2023}
 }
+```
