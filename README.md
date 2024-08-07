@@ -1,5 +1,9 @@
 # NMER
 
+## Update
+Our work has been accepted by MRAC@ACM Multimedia.
+
+
 This repo implements the Noise-robust Multimodal Emotion Recognition(NMER)  model for the following paper:
 "Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios".
 
