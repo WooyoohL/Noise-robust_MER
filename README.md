@@ -1,7 +1,8 @@
 # NMER
 
 ## Update
-###Our work has been accepted by MRAC@ACM Multimedia.
+
+Our work has been accepted by MRAC@ACM Multimedia. 
 
 
 ## Introduction
