@@ -2,7 +2,7 @@
 
 ## Update
 
-Our work has been accepted by MRAC@ACM Multimedia. 
+Our work has been accepted by MRAC@ACM Multimedia 2024. 
 
 
 ## Introduction
@@ -55,13 +55,17 @@ IEMOCAP A V L modality Features
 Link: https://pan.baidu.com/s/1WmuqNlvcs5XzLKfz5i4iqQ 
 Extract code: gn6w 
 
+## Institution
+Inner Mongolia University, Hohhot, China.
+
 ## Cition
-If you find our work or this repository useful, please consider citing:
+If you find our work or this repository useful, please citing:
 ```bibtex
-@article{fan2023learning,
-  title={Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Realistic Incomplete Data Scenarios},
+@inproceedings{fan2024learning,
+  title={Learning Noise-Robust Joint Representation for Multimodal Emotion Recognition under Incomplete Data Scenarios},
   author={Fan, Qi and Zuo, Haolin and Liu, Rui and Lian, Zheng and Gao, Guanglai},
-  journal={arXiv preprint arXiv:2311.16114},
-  year={2023}
+  booktitle={Proceedings of the 2nd International Workshop on Multimodal and Responsible Affective Computing},
+  pages={116--124},
+  year={2024}
 }
 ```
